@@ -213,8 +213,9 @@ times. The dispatch defaults are 200 games, 2,000
 nodes, 20 epochs, 260 cp, and 100 validation games per arm. The committed
 request currently asks for 1,000 training games and 200 validation games per
 arm against the fixed Stockfish release tag `sf_18`; both training and
-validation use that same opponent. The first, baseline-opponent pilot was
-negative; see [ADAPT.md](ADAPT.md#pilot-result-2026-10-23).
+validation use that same opponent, and both append two seeded random legal
+plies to each opening. The current result is neutral, not promotable; see
+[ADAPT.md](ADAPT.md#pilot-result-2026-10-23).
 After the workflow is on the default branch it can also be dispatched manually.
 The artifact `adapt-pilot` contains the games, checkpoints, profile, validation
 report, and `pilot-summary.md`.

@@ -145,10 +145,22 @@ The 10 cp run produced a maximum absolute correction of only 0.12 cp, which
 rounded to zero in search and therefore reproduced the control exactly. The
 larger runs learned corrections that changed play and lost strength. With two
 identical engines, the game result is a weak, nearly symmetric label for the
-evaluation of an individual position; the MVP overfits it. This is recorded as
-a negative pilot, not as evidence that the adapter improves Stockfish. A
-stronger experiment needs more games, opponent/node-budget diversity, and
-regularisation or early stopping selected before seeing validation results.
-The pilot workflow now supports a fixed release opponent (`opponent_tag`,
-default `sf_18`) for both training and validation; the pinned current-dev
-baseline remains the CI identity reference.
+evaluation of an individual position; the MVP overfits it.
+
+A second experiment used Stockfish 18 (`sf_18`) as the fixed opponent for
+training and validation, with two seeded random legal plies appended to every
+opening line. This produced 986 distinct games out of 1,000, instead of the 46
+distinct games in the first SF18 attempt (where deterministic engines repeated
+the same opening/colour pair up to 42 times). With 7,767 training samples, 20
+epochs, and 200 paired validation games:
+
+| Candidate score | Control score | Paired difference (95% CI) | Promotable |
+|---:|---:|---|---|
+| 53.8% | 54.0% | -0.25% (-6.5%, +6.0%) | no |
+
+That is a neutral result within the confidence interval, not evidence of an
+improvement. The pilot workflow supports a fixed release opponent
+(`opponent_tag`, default `sf_18`) for both training and validation; the pinned
+current-dev baseline remains the CI identity reference. More games, opponent
+and node-budget diversity, and pre-registered regularisation or early stopping
+are still needed before drawing a strength conclusion.
