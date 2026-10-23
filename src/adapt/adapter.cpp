@@ -24,7 +24,9 @@
 #include <array>
 #include <atomic>
 #include <cctype>
+#include <cerrno>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <map>
@@ -83,29 +85,21 @@ std::string lower(std::string s) {
 }
 
 bool parseInt(const std::string& text, long long& value) {
-    try
-    {
-        std::size_t used = 0;
-        value            = std::stoll(text, &used);
-        return used == text.size();
-    }
-    catch (...)
-    {
+    if (text.empty())
         return false;
-    }
+    errno     = 0;
+    char* end = nullptr;
+    value     = std::strtoll(text.c_str(), &end, 10);
+    return errno == 0 && end == text.c_str() + text.size();
 }
 
 bool parseDouble(const std::string& text, double& value) {
-    try
-    {
-        std::size_t used = 0;
-        value            = std::stod(text, &used);
-        return used == text.size();
-    }
-    catch (...)
-    {
+    if (text.empty())
         return false;
-    }
+    errno     = 0;
+    char* end = nullptr;
+    value     = std::strtod(text.c_str(), &end);
+    return errno == 0 && end == text.c_str() + text.size();
 }
 
 bool sameNetHash(const std::string& a, const std::string& b) {
