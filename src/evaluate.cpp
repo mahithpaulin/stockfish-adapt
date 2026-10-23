@@ -27,6 +27,8 @@
 #include <memory>
 #include <sstream>
 
+#include "adapt/adapter.h"
+#include "adapt/integration.h"
 #include "misc.h"
 #include "nnue/network.h"
 #include "nnue/nnue_misc.h"
@@ -45,15 +47,34 @@ static int simple_eval(const Position& pos) {
 
 Value scale_evaluation(Value nnue, int optimism, const Position& pos);
 
+Value Eval::evaluate_raw(const Eval::NNUE::Network&     network,
+                         const Position&                pos,
+                         Eval::NNUE::AccumulatorStack&  accumulators,
+                         Eval::NNUE::AccumulatorCaches& caches,
+                         int                            optimism) {
+
+    assert(!pos.checkers());
+    Value nnue = network.evaluate(pos, accumulators, caches);
+    return scale_evaluation(nnue, optimism, pos);
+}
+
 Value Eval::evaluate(const Eval::NNUE::Network&     network,
                      const Position&                pos,
                      Eval::NNUE::AccumulatorStack&  accumulators,
                      Eval::NNUE::AccumulatorCaches& caches,
                      int                            optimism) {
 
-    assert(!pos.checkers());
-    Value nnue = network.evaluate(pos, accumulators, caches);
-    return scale_evaluation(nnue, optimism, pos);
+    Value value = evaluate_raw(network, pos, accumulators, caches, optimism);
+
+    if (const Adapt::Adapter* adapter = Adapt::active())
+    {
+        static_assert(Adapt::kAccumulatorDimensions == Eval::NNUE::L1,
+                      "adapter feature layout does not match the NNUE network");
+        const auto& accumulator = accumulators.latest().accumulation[pos.side_to_move()];
+        value = Adapt::applyCorrection(*adapter, value, accumulator.data());
+    }
+
+    return value;
 }
 
 // Applies search-dependent scaling (optimism and rule50) to the raw NNUE eval

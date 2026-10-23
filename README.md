@@ -42,6 +42,17 @@ Stockfish with it.
 
 See also the Stockfish [documentation][wiki-usage-link] for further usage help.
 
+## Stockfish Adapt
+
+This fork keeps the Stockfish NNUE frozen and adds a tiny, trainable evaluation
+adapter on top of the existing 1024-dimensional accumulator. The adapter is
+trained offline from self-play data and loaded with the `AdaptFile` option; it
+is disabled by default and `OFF` mode is intended to be bit-identical to the
+pinned upstream commit.
+
+* [Design and verified integration points](docs/ADAPT.md)
+* [Build, UCI, data generation, training and validation](docs/ADAPT_USAGE.md)
+
 ## Files
 
 This distribution of Stockfish consists of the following files:

@@ -1,0 +1,87 @@
+name: Adapt CI
+
+on:
+  push:
+    branches: [adapt]
+  pull_request:
+    branches: [adapt]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adapt-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASELINE_COMMIT: effdc3fd3f6de6e75fe1374a51a7a7eed66f880b
+  ARCH: x86-64-avx2
+  COMP: g++
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python test dependency
+        run: python -m pip install --disable-pip-version-check python-chess
+
+      - name: Python tooling tests
+        run: python -m unittest discover -s tests/adapt -p 'test_*.py' -v
+
+      - name: Compile adapter unit test
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -I src \
+            src/adapt/adapter.cpp tests/adapt/adapter_test.cpp \
+            -o "${{ runner.temp }}/adapter_test"
+          "${{ runner.temp }}/adapter_test"
+
+      - name: Build candidate engine
+        run: make -C src -j2 build ARCH="${ARCH}" COMP="${COMP}"
+
+      - name: Build pinned baseline engine
+        run: |
+          mkdir -p "${{ runner.temp }}/baseline"
+          curl -fsSL \
+            "https://codeload.github.com/official-stockfish/Stockfish/tar.gz/${BASELINE_COMMIT}" \
+            -o "${{ runner.temp }}/baseline.tar.gz"
+          tar -xzf "${{ runner.temp }}/baseline.tar.gz" \
+            -C "${{ runner.temp }}/baseline" --strip-components=1
+          make -C "${{ runner.temp }}/baseline/src" -j2 build ARCH="${ARCH}" COMP="${COMP}"
+
+      - name: Engine protocol and baseline equivalence
+        run: |
+          python tools/adapt/ci_check.py \
+            --engine src/stockfish \
+            --baseline "${{ runner.temp }}/baseline/src/stockfish" \
+            --depth 8 \
+            --report "${{ runner.temp }}/ci-report.json"
+
+      - name: Log engine versions
+        if: always()
+        run: |
+          src/stockfish <<'EOF' || true
+          uci
+          adapt netid
+          adapt status
+          quit
+          EOF
+
+      - name: Upload CI report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adapt-ci-report
+          path: |
+            ${{ runner.temp }}/ci-report.json
+          if-no-files-found: warn

@@ -103,6 +103,11 @@ class Engine {
 
     void trace_eval() const;
 
+    // Stockfish Adapt offline probes. These never run inside search.
+    std::string adapt_net_id() const;
+    std::string adapt_features() const;
+    std::string adapt_probe() const;
+
     const OptionsMap& get_options() const;
     OptionsMap&       get_options();
 

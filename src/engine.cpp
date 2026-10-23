@@ -19,9 +19,12 @@
 #include "engine.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
+#include <cctype>
 #include <filesystem>
 #include <deque>
+#include <iomanip>
 #include <iosfwd>
 #include <memory>
 #include <ostream>
@@ -30,9 +33,12 @@
 #include <utility>
 #include <vector>
 
+#include "adapt/adapter.h"
+#include "adapt/integration.h"
 #include "evaluate.h"
 #include "misc.h"
 #include "nnue/network.h"
+#include "nnue/nnue_accumulator.h"
 #include "nnue/nnue_common.h"
 #include "numa.h"
 #include "perft.h"
@@ -136,6 +142,47 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
       "EvalFile", Option(EvalFileDefaultName, [this](const Option& o) {
           load_network(path_from_utf8(std::string(o)));
           return std::nullopt;
+      }));
+
+    options.add(  //
+      "AdaptFile", Option("", [this](const Option& o) -> std::optional<std::string> {
+          const std::string path = std::string(o);
+          if (path.empty())
+          {
+              Adapt::unload();
+              return std::nullopt;
+          }
+
+          std::string error;
+          if (!Adapt::install(path_from_utf8(path).string(), adapt_net_id(), error))
+          {
+              Adapt::unload();
+              return std::optional<std::string>("Adapt: " + error);
+          }
+          return std::nullopt;
+      }));
+
+    options.add(  //
+      "AdaptMode", Option("OFF", [](const Option& o) -> std::optional<std::string> {
+          std::string value = std::string(o);
+          std::transform(value.begin(), value.end(), value.begin(),
+                         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+          Adapt::Mode target;
+          if (value == "off")
+              target = Adapt::Mode::Off;
+          else if (value == "adapt")
+              target = Adapt::Mode::Adapt;
+          else if (value == "learn")
+              target = Adapt::Mode::Learn;
+          else
+              return std::optional<std::string>("Adapt: invalid mode '" + std::string(o)
+                                                + "' (expected OFF, ADAPT, or LEARN)");
+
+          std::string error;
+          if (!Adapt::setMode(target, error))
+              return std::optional<std::string>("Adapt: " + error);
+          return std::optional<std::string>{};
       }));
 
     threads.clear();
@@ -296,6 +343,11 @@ void Engine::load_network(const std::filesystem::path& file) {
       [this, &file](NN::Network& network_) { network_.load(binaryDirectory, file, networkFile); });
     threads.clear();
     threads.ensure_network_replicated();
+
+    const bool hadAdapter = Adapt::loaded() != nullptr;
+    Adapt::onNetworkChanged(adapt_net_id());
+    if (hadAdapter && Adapt::loaded() == nullptr)
+        sync_cout << "info string Adapt: network changed; adapter disabled" << sync_endl;
 }
 
 void Engine::save_network(const std::optional<std::filesystem::path>& file) {
@@ -317,6 +369,68 @@ void Engine::trace_eval() const {
 
 const OptionsMap& Engine::get_options() const { return options; }
 OptionsMap&       Engine::get_options() { return options; }
+
+std::string Engine::adapt_net_id() const {
+    std::ostringstream ss;
+    ss << std::hex << std::setw(16) << std::setfill('0') << (*network).get_content_hash();
+    return ss.str();
+}
+
+std::string Engine::adapt_features() const {
+    StateListPtr trace_states(new std::deque<StateInfo>(1));
+    Position     p;
+    p.set(pos.fen(), options["UCI_Chess960"], &trace_states->back());
+
+    if (p.checkers())
+        return "error in-check";
+
+    auto accumulators = std::make_unique<Eval::NNUE::AccumulatorStack>();
+    auto caches       = std::make_unique<Eval::NNUE::AccumulatorCaches>(*network);
+
+    const Value raw = Eval::evaluate_raw(*network, p, *accumulators, *caches, 0);
+    const auto& accumulator = accumulators->latest().accumulation[p.side_to_move()];
+
+    const Adapt::Adapter* adapter = Adapt::loaded();
+    const int dim = adapter ? adapter->spec().inputDim : Adapt::kDefaultInputs;
+
+    std::array<float, Adapt::kMaxInputs> features{};
+    Adapt::projectFeatures(accumulator.data(), dim, features.data());
+
+    std::ostringstream ss;
+    ss << raw << ' ' << adapt_net_id() << ' ' << Adapt::kFeatureVersion << ' ' << dim;
+    ss << std::setprecision(7);
+    for (int i = 0; i < dim; ++i)
+        ss << ' ' << features[i];
+    return ss.str();
+}
+
+std::string Engine::adapt_probe() const {
+    StateListPtr trace_states(new std::deque<StateInfo>(1));
+    Position     p;
+    p.set(pos.fen(), options["UCI_Chess960"], &trace_states->back());
+
+    if (p.checkers())
+        return "error in-check";
+
+    auto accumulators = std::make_unique<Eval::NNUE::AccumulatorStack>();
+    auto caches       = std::make_unique<Eval::NNUE::AccumulatorCaches>(*network);
+
+    const Value raw = Eval::evaluate_raw(*network, p, *accumulators, *caches, 0);
+    const auto& accumulator = accumulators->latest().accumulation[p.side_to_move()];
+
+    const Adapt::Adapter* adapter = Adapt::loaded();
+    const int corrected = adapter
+                          ? Adapt::applyCorrection(*adapter, raw, accumulator.data())
+                          : raw;
+
+    std::ostringstream ss;
+    ss << "baseline=" << raw << " delta=" << (corrected - raw) << " corrected=" << corrected
+       << " mode=" << Adapt::modeName(Adapt::mode())
+       << " params=" << (adapter ? adapter->spec().paramCount() : 0)
+       << " limit_cp=" << (adapter ? adapter->spec().limitCp : 0.0)
+       << " feature_version=" << Adapt::kFeatureVersion << " net=" << adapt_net_id();
+    return ss.str();
+}
 
 std::string Engine::fen() const { return pos.fen(); }
 

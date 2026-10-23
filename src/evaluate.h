@@ -48,6 +48,14 @@ Value evaluate(const NNUE::Network&           network,
                Eval::NNUE::AccumulatorStack&  accumulators,
                Eval::NNUE::AccumulatorCaches& caches,
                int                            optimism);
+
+// Frozen-NNUE evaluation with Stockfish's existing scaling, before the
+// optional adapter correction. Exposed for feature extraction and tests.
+Value evaluate_raw(const NNUE::Network&           network,
+                   const Position&                pos,
+                   Eval::NNUE::AccumulatorStack&  accumulators,
+                   Eval::NNUE::AccumulatorCaches& caches,
+                   int                            optimism);
 }  // namespace Eval
 
 }  // namespace Stockfish

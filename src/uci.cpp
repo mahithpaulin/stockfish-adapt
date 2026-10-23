@@ -18,6 +18,8 @@
 
 #include "uci.h"
 
+#include "adapt/adapter.h"
+
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -160,6 +162,23 @@ void UCIEngine::loop() {
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
             engine.trace_eval();
+        else if (token == "adapt")
+        {
+            std::string sub;
+            is >> sub;
+
+            if (sub == "features")
+                sync_cout << "adapt_features " << engine.adapt_features() << sync_endl;
+            else if (sub == "probe")
+                sync_cout << "adapt_probe " << engine.adapt_probe() << sync_endl;
+            else if (sub == "netid")
+                sync_cout << "adapt_netid " << engine.adapt_net_id() << sync_endl;
+            else if (sub == "status")
+                sync_cout << "adapt_status " << Adapt::status() << sync_endl;
+            else
+                sync_cout << "Unknown adapt command. Use: adapt features|probe|netid|status"
+                          << sync_endl;
+        }
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")
