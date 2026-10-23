@@ -163,6 +163,7 @@ jobs:
                   f"- training samples: {data['dataset']['train_samples']}",
                   f"- validation samples: {data['dataset']['validation_samples']}",
                   f"- best validation loss: {data['best_validation_loss']}",
+                  f"- correction limit: {data['architecture']['limit_cp']} cp",
               ]
           validation = out / "validation" / "validation.json"
           if validation.exists():
