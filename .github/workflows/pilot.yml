@@ -15,6 +15,12 @@ on:
       validation_games:
         description: Games per validation arm
         default: "100"
+      limit_cp:
+        description: Adapter correction limit in centipawns
+        default: "260"
+      delta_l2:
+        description: Correction L2 strength
+        default: "0.01"
   push:
     branches: [adapt]
     paths: [.pilot-request.json]
@@ -30,6 +36,8 @@ env:
   NODES: ${{ github.event.inputs.nodes || '2000' }}
   EPOCHS: ${{ github.event.inputs.epochs || '20' }}
   VALIDATION_GAMES: ${{ github.event.inputs.validation_games || '100' }}
+  LIMIT_CP: ${{ github.event.inputs.limit_cp || '260' }}
+  DELTA_L2: ${{ github.event.inputs.delta_l2 || '0.01' }}
 
 jobs:
   pilot:
@@ -40,6 +48,29 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Read pilot request
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          path = pathlib.Path(".pilot-request.json")
+          data = json.loads(path.read_text()) if path.exists() else {}
+          defaults = {
+              "games": os.environ.get("GAMES", "200"),
+              "nodes": os.environ.get("NODES", "2000"),
+              "epochs": os.environ.get("EPOCHS", "20"),
+              "validation_games": os.environ.get("VALIDATION_GAMES", "100"),
+              "limit_cp": os.environ.get("LIMIT_CP", "260"),
+              "delta_l2": os.environ.get("DELTA_L2", "0.01"),
+          }
+          casts = {"games": int, "nodes": int, "epochs": int,
+                   "validation_games": int, "limit_cp": float, "delta_l2": float}
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+              for key, cast in casts.items():
+                  value = cast(data.get(key, defaults[key]))
+                  handle.write(f"{key.upper()}={value}\n")
+          PY
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -86,6 +117,8 @@ jobs:
             --state runs/pilot/train-state.json \
             --report runs/pilot/training-report.json \
             --epochs "${EPOCHS}" \
+            --limit-cp "${LIMIT_CP}" \
+            --delta-l2 "${DELTA_L2}" \
             --seed 1
 
       - name: Profile training data
