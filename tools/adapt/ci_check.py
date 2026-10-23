@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 import os
+import random
 import sys
 import tempfile
 from pathlib import Path
@@ -104,6 +105,33 @@ def run(engine_path: str, baseline_path: str | None, depth: int) -> dict[str, An
             status = engine.status()
             check("mode=OFF" in status, f"unexpected status: {status}")
             report["checks"].append("status")
+
+            random_path = workspace / "random.sfa"
+            random_model = model_module.AdapterModel(model_module.mvp_architecture(), seed=7)
+            generator = random.Random(7)
+            random_model.params = [generator.gauss(0.0, 0.05) for _ in range(random_model.param_count)]
+            random_model.to_sfa(
+                random_path,
+                net_hash=net_hash,
+                net_name="stockfish-default",
+                engine_id="ci-random",
+                metadata={"role": "ci-random"},
+            )
+            engine.set_options({"AdaptFile": str(random_path), "AdaptMode": "ADAPT"})
+            engine.set_position(FENS[0])
+            random_features = engine.probe_features(FENS[0])
+            random_values = engine.probe()
+            python_delta = random_model.delta(random_features.features)
+            cpp_delta = int(random_values["delta"])
+            check(abs(python_delta - cpp_delta) <= 1,
+                  f"checkpoint graph mismatch: python {python_delta:.3f}, cpp {cpp_delta}")
+            check(int(random_values["corrected"]) - int(random_values["baseline"]) == cpp_delta,
+                  f"probe delta inconsistent: {random_values}")
+            report["checkpoint_consistency"] = {
+                "cpp_delta": cpp_delta,
+                "python_delta": python_delta,
+            }
+            report["checks"].append("checkpoint-consistency")
 
             wrong = workspace / "wrong.sfa"
             model_module.AdapterModel(model_module.mvp_architecture(), seed=0).to_sfa(
