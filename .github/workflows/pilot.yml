@@ -1,0 +1,159 @@
+name: Adapt pilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      games:
+        description: Training games
+        default: "200"
+      nodes:
+        description: Nodes per move
+        default: "2000"
+      epochs:
+        description: Training epochs
+        default: "20"
+      validation_games:
+        description: Games per validation arm
+        default: "100"
+  push:
+    branches: [adapt]
+    paths: [.pilot-request.json]
+
+permissions:
+  contents: read
+
+env:
+  BASELINE_COMMIT: effdc3fd3f6de6e75fe1374a51a7a7eed66f880b
+  ARCH: x86-64-avx2
+  COMP: gcc
+  GAMES: ${{ github.event.inputs.games || '200' }}
+  NODES: ${{ github.event.inputs.nodes || '2000' }}
+  EPOCHS: ${{ github.event.inputs.epochs || '20' }}
+  VALIDATION_GAMES: ${{ github.event.inputs.validation_games || '100' }}
+
+jobs:
+  pilot:
+    if: github.repository == 'mahithpaulin/stockfish-adapt'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python test dependency
+        run: python -m pip install --disable-pip-version-check python-chess
+
+      - name: Build candidate engine
+        run: make -C src -j2 build ARCH="${ARCH}" COMP="${COMP}"
+
+      - name: Build pinned baseline engine
+        run: |
+          mkdir -p "${{ runner.temp }}/baseline"
+          curl -fsSL \
+            "https://codeload.github.com/official-stockfish/Stockfish/tar.gz/${BASELINE_COMMIT}" \
+            -o "${{ runner.temp }}/baseline.tar.gz"
+          tar -xzf "${{ runner.temp }}/baseline.tar.gz" \
+            -C "${{ runner.temp }}/baseline" --strip-components=1
+          make -C "${{ runner.temp }}/baseline/src" -j2 build ARCH="${ARCH}" COMP="${COMP}"
+
+      - name: Generate training games
+        run: |
+          mkdir -p runs/pilot
+          python tools/adapt/match.py \
+            --candidate src/stockfish \
+            --baseline "${{ runner.temp }}/baseline/src/stockfish" \
+            --candidate-mode OFF \
+            --output runs/pilot/match \
+            --games "${GAMES}" \
+            --nodes "${NODES}" \
+            --openings train \
+            --sample-every 4 \
+            --max-plies 300 \
+            --move-timeout 30
+
+      - name: Train adapter
+        run: |
+          python tools/adapt/train.py \
+            --data runs/pilot/match/games.jsonl \
+            --out runs/pilot/candidate.sfa \
+            --final-out runs/pilot/candidate-final.sfa \
+            --state runs/pilot/train-state.json \
+            --report runs/pilot/training-report.json \
+            --epochs "${EPOCHS}" \
+            --seed 1
+
+      - name: Profile training data
+        run: |
+          python tools/adapt/profile.py \
+            --data runs/pilot/match/games.jsonl \
+            --output runs/pilot/profile.json
+
+      - name: Validate adapter
+        run: |
+          python tools/adapt/validate.py \
+            --engine src/stockfish \
+            --baseline "${{ runner.temp }}/baseline/src/stockfish" \
+            --candidate-adapt-file runs/pilot/candidate.sfa \
+            --output runs/pilot/validation \
+            --games "${VALIDATION_GAMES}" \
+            --min-games "${VALIDATION_GAMES}" \
+            --nodes "${NODES}" \
+            --max-plies 300 \
+            --move-timeout 30
+
+      - name: Summarise
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          out = pathlib.Path("runs/pilot")
+          lines = ["# Adapt pilot", ""]
+          match = out / "match" / "summary.json"
+          if match.exists():
+              data = json.loads(match.read_text())
+              lines += [
+                  f"- training games recorded: {data.get('games_recorded')}",
+                  f"- valid: {data.get('games')}",
+                  f"- failures: {data.get('failures')}",
+                  f"- score: {data.get('score_pct')}",
+              ]
+          report = out / "training-report.json"
+          if report.exists():
+              data = json.loads(report.read_text())
+              lines += [
+                  f"- training samples: {data['dataset']['train_samples']}",
+                  f"- validation samples: {data['dataset']['validation_samples']}",
+                  f"- best validation loss: {data['best_validation_loss']}",
+              ]
+          validation = out / "validation" / "validation.json"
+          if validation.exists():
+              data = json.loads(validation.read_text())
+              lines += [
+                  "",
+                  "## Validation",
+                  f"- paired games: {data['paired_games']}",
+                  f"- candidate score: {data['candidate']['score']:.4f}",
+                  f"- control score: {data['control']['score']:.4f}",
+                  f"- paired difference: {data['paired_difference']['mean']:+.4f}",
+                  f"- difference CI95: {data['paired_difference']['ci95']}",
+                  f"- promotable: {data['promotable']}",
+              ]
+          pathlib.Path("pilot-summary.md").write_text("\n".join(lines) + "\n")
+          print("\n".join(lines))
+          PY
+
+      - name: Upload pilot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adapt-pilot
+          path: |
+            runs/pilot
+            pilot-summary.md
+          if-no-files-found: warn

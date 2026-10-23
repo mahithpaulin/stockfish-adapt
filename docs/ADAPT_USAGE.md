@@ -200,3 +200,13 @@ this check (see `.github/workflows/adapt.yml`).
 * Search code and NNUE incremental state are untouched.
 * Evaluation-time cost is small but nonzero; `bench.py` measures it rather than
   assuming it.
+
+## Pilot on GitHub Actions
+
+`.github/workflows/pilot.yml` generates training games with the OFF engine,
+trains an adapter, profiles the data, and validates against the pinned baseline.
+On the `adapt` branch it is triggered by a change to `.pilot-request.json`; the
+defaults are 200 games, 2,000 nodes, 20 epochs, and 100 validation games per arm.
+After the workflow is on the default branch it can also be dispatched manually.
+The artifact `adapt-pilot` contains the games, checkpoints, profile, validation
+report, and `pilot-summary.md`.
