@@ -207,9 +207,12 @@ this check (see `.github/workflows/adapt.yml`).
 trains an adapter, profiles the data, and validates against the pinned baseline.
 On the `adapt` branch it is triggered by a change to `.pilot-request.json`; that
 file can override `games`, `nodes`, `epochs`, `validation_games`, `limit_cp`,
-and `delta_l2`. The defaults are 200 games, 2,000 nodes, 20 epochs, 260 cp, and
-100 validation games per arm. The recorded pilot was negative; see
-[ADAPT.md](ADAPT.md#pilot-result-2026-10-23).
+`delta_l2`, and `opponent_tag`. The dispatch defaults are 200 games, 2,000
+nodes, 20 epochs, 260 cp, and 100 validation games per arm. The committed
+request currently asks for 1,000 training games and 200 validation games per
+arm against the fixed Stockfish release tag `sf_18`; both training and
+validation use that same opponent. The first, baseline-opponent pilot was
+negative; see [ADAPT.md](ADAPT.md#pilot-result-2026-10-23).
 After the workflow is on the default branch it can also be dispatched manually.
 The artifact `adapt-pilot` contains the games, checkpoints, profile, validation
 report, and `pilot-summary.md`.

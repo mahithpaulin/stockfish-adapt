@@ -1,1 +1,1 @@
-{"games":200,"nodes":2000,"epochs":20,"validation_games":100,"limit_cp":260,"delta_l2":0.01}
+{"games":1000,"nodes":2000,"epochs":20,"validation_games":200,"limit_cp":260,"delta_l2":0.01,"opponent_tag":"sf_18"}

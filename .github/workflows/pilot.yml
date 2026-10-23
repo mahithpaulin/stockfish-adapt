@@ -21,6 +21,9 @@ on:
       delta_l2:
         description: Correction L2 strength
         default: "0.01"
+      opponent_tag:
+        description: Fixed opponent release tag
+        default: "sf_18"
   push:
     branches: [adapt]
     paths: [.pilot-request.json]
@@ -29,7 +32,7 @@ permissions:
   contents: read
 
 env:
-  BASELINE_COMMIT: effdc3fd3f6de6e75fe1374a51a7a7eed66f880b
+  OPPONENT_TAG: ${{ github.event.inputs.opponent_tag || 'sf_18' }}
   ARCH: x86-64-avx2
   COMP: gcc
   GAMES: ${{ github.event.inputs.games || '200' }}
@@ -63,10 +66,15 @@ jobs:
               "validation_games": os.environ.get("VALIDATION_GAMES", "100"),
               "limit_cp": os.environ.get("LIMIT_CP", "260"),
               "delta_l2": os.environ.get("DELTA_L2", "0.01"),
+              "opponent_tag": os.environ.get("OPPONENT_TAG", "sf_18"),
           }
           casts = {"games": int, "nodes": int, "epochs": int,
                    "validation_games": int, "limit_cp": float, "delta_l2": float}
+          opponent = str(data.get("opponent_tag", defaults["opponent_tag"]))
+          if not all(c.isalnum() or c in "._-" for c in opponent):
+              raise SystemExit(f"invalid opponent tag {opponent!r}")
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+              handle.write(f"OPPONENT_TAG={opponent}\n")
               for key, cast in casts.items():
                   value = cast(data.get(key, defaults[key]))
                   handle.write(f"{key.upper()}={value}\n")
@@ -83,22 +91,22 @@ jobs:
       - name: Build candidate engine
         run: make -C src -j2 build ARCH="${ARCH}" COMP="${COMP}"
 
-      - name: Build pinned baseline engine
+      - name: Build fixed Stockfish opponent
         run: |
-          mkdir -p "${{ runner.temp }}/baseline"
+          mkdir -p "${{ runner.temp }}/opponent"
           curl -fsSL \
-            "https://codeload.github.com/official-stockfish/Stockfish/tar.gz/${BASELINE_COMMIT}" \
-            -o "${{ runner.temp }}/baseline.tar.gz"
-          tar -xzf "${{ runner.temp }}/baseline.tar.gz" \
-            -C "${{ runner.temp }}/baseline" --strip-components=1
-          make -C "${{ runner.temp }}/baseline/src" -j2 build ARCH="${ARCH}" COMP="${COMP}"
+            "https://codeload.github.com/official-stockfish/Stockfish/tar.gz/${OPPONENT_TAG}" \
+            -o "${{ runner.temp }}/opponent.tar.gz"
+          tar -xzf "${{ runner.temp }}/opponent.tar.gz" \
+            -C "${{ runner.temp }}/opponent" --strip-components=1
+          make -C "${{ runner.temp }}/opponent/src" -j2 build ARCH="${ARCH}" COMP="${COMP}"
 
       - name: Generate training games
         run: |
           mkdir -p runs/pilot
           python tools/adapt/match.py \
             --candidate src/stockfish \
-            --baseline "${{ runner.temp }}/baseline/src/stockfish" \
+            --baseline "${{ runner.temp }}/opponent/src/stockfish" \
             --candidate-mode OFF \
             --output runs/pilot/match \
             --games "${GAMES}" \
@@ -131,7 +139,7 @@ jobs:
         run: |
           python tools/adapt/validate.py \
             --engine src/stockfish \
-            --baseline "${{ runner.temp }}/baseline/src/stockfish" \
+            --baseline "${{ runner.temp }}/opponent/src/stockfish" \
             --candidate-adapt-file runs/pilot/candidate.sfa \
             --output runs/pilot/validation \
             --games "${VALIDATION_GAMES}" \
@@ -144,9 +152,9 @@ jobs:
         if: always()
         run: |
           python - <<'PY'
-          import json, pathlib
+          import json, os, pathlib
           out = pathlib.Path("runs/pilot")
-          lines = ["# Adapt pilot", ""]
+          lines = ["# Adapt pilot", "", f"- opponent: {os.environ.get('OPPONENT_TAG', 'unknown')}"]
           match = out / "match" / "summary.json"
           if match.exists():
               data = json.loads(match.read_text())

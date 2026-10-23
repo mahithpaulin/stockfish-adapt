@@ -149,3 +149,6 @@ evaluation of an individual position; the MVP overfits it. This is recorded as
 a negative pilot, not as evidence that the adapter improves Stockfish. A
 stronger experiment needs more games, opponent/node-budget diversity, and
 regularisation or early stopping selected before seeing validation results.
+The pilot workflow now supports a fixed release opponent (`opponent_tag`,
+default `sf_18`) for both training and validation; the pinned current-dev
+baseline remains the CI identity reference.
