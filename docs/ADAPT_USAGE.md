@@ -9,7 +9,7 @@ Design and verified source details: [ADAPT.md](ADAPT.md).
 ## Build
 
 ```sh
-make -C src -j2 build ARCH=x86-64-avx2 COMP=g++
+make -C src -j2 build ARCH=x86-64-avx2 COMP=gcc
 ```
 
 `make build` downloads the default network (`nn-c9e480e92425.nnue`). The network
