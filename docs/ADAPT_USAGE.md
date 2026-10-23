@@ -43,7 +43,7 @@ Commands:
 | `adapt status` | loaded/path/mode/network summary |
 
 `adapt features` reports the frozen network's scaled evaluation and the
-projected 96-d accumulator features for the side to move. It refuses positions
+projected accumulator features (96-d for the default architecture) for the side to move. It refuses positions
 in check, matching the engine's evaluation contract. Features are only valid
 for the network hash printed beside them.
 
@@ -205,8 +205,11 @@ this check (see `.github/workflows/adapt.yml`).
 
 `.github/workflows/pilot.yml` generates training games with the OFF engine,
 trains an adapter, profiles the data, and validates against the pinned baseline.
-On the `adapt` branch it is triggered by a change to `.pilot-request.json`; the
-defaults are 200 games, 2,000 nodes, 20 epochs, and 100 validation games per arm.
+On the `adapt` branch it is triggered by a change to `.pilot-request.json`; that
+file can override `games`, `nodes`, `epochs`, `validation_games`, `limit_cp`,
+and `delta_l2`. The defaults are 200 games, 2,000 nodes, 20 epochs, 260 cp, and
+100 validation games per arm. The recorded pilot was negative; see
+[ADAPT.md](ADAPT.md#pilot-result-2026-10-23).
 After the workflow is on the default branch it can also be dispatched manually.
 The artifact `adapt-pilot` contains the games, checkpoints, profile, validation
 report, and `pilot-summary.md`.

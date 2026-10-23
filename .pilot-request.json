@@ -1,1 +1,1 @@
-{"games":200,"nodes":2000,"epochs":20,"validation_games":100,"limit_cp":60,"delta_l2":0.05}
+{"games":200,"nodes":2000,"epochs":20,"validation_games":100,"limit_cp":260,"delta_l2":0.01}

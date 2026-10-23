@@ -46,7 +46,7 @@ See also the Stockfish [documentation][wiki-usage-link] for further usage help.
 
 This fork keeps the Stockfish NNUE frozen and adds a tiny, trainable evaluation
 adapter on top of the existing 1024-dimensional accumulator. The adapter is
-trained offline from self-play data and loaded with the `AdaptFile` option; it
+trained offline from candidate-vs-baseline match data and loaded with the `AdaptFile` option; it
 is disabled by default and `OFF` mode is intended to be bit-identical to the
 pinned upstream commit.
 

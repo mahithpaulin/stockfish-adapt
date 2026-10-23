@@ -105,9 +105,9 @@ wrong architecture, or an out-of-budget parameter count is rejected with an
 `AccumulatorStack` already performs incremental updates for search. The adapter
 adds 1536 fixed projection additions, `96*20` multiply-adds, 20 tanh for the
 hidden layer, and one output tanh per NNUE evaluation. No incremental NNUE state
-is touched. Measured overhead is reported by `tools/adapt/bench.py` using
-`bench` with the adapter loaded and zero-initialised, so the search tree is
-identical and only inference cost differs.
+is touched. Measure overhead with `tools/adapt/bench.py`, which runs `bench`
+with the adapter loaded and zero-initialised so the search tree is identical and
+only inference cost differs. Only report numbers produced by that run.
 
 ## Search and threading
 
@@ -127,3 +127,25 @@ process exit; this is deliberate, bounded by the number of `setoption` calls.
 
 Data extraction and training are offline. No Python, file I/O, or process calls
 occur in the evaluation path.
+
+## Pilot result (2026-10-23)
+
+The first real-data run used 200 candidate-vs-baseline games at 2,000 nodes,
+24 training openings, 2,352 training samples, 301 validation samples, the
+1,961-parameter MVP, 20 epochs, and `delta_l2 = 0.01`. Validation used 100
+paired games against the pinned baseline, with the zero adapter as the control:
+
+| Run | Correction limit | Paired games | Candidate score | Control score | Paired difference (95% CI) | Promotable |
+|---|---:|---:|---:|---:|---|---|
+| MVP, `delta_l2=0.01` | 260 cp | 100 | 30.0% | 50.0% | -20.0% (-30.0%, -9.5%) | no |
+| MVP, `delta_l2=0.05` | 60 cp | 96 | 38.5% | 50.0% | -11.5% (-21.9%, -1.0%) | no |
+| MVP, `delta_l2=0.50` | 10 cp | 100 | 50.0% | 50.0% | 0.0% (0.0%, 0.0%) | no |
+
+The 10 cp run produced a maximum absolute correction of only 0.12 cp, which
+rounded to zero in search and therefore reproduced the control exactly. The
+larger runs learned corrections that changed play and lost strength. With two
+identical engines, the game result is a weak, nearly symmetric label for the
+evaluation of an individual position; the MVP overfits it. This is recorded as
+a negative pilot, not as evidence that the adapter improves Stockfish. A
+stronger experiment needs more games, opponent/node-budget diversity, and
+regularisation or early stopping selected before seeing validation results.
