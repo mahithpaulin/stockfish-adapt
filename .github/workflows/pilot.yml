@@ -112,6 +112,7 @@ jobs:
             --games "${GAMES}" \
             --nodes "${NODES}" \
             --openings train \
+            --random-opening-plies 2 \
             --sample-every 4 \
             --max-plies 300 \
             --move-timeout 30
@@ -145,6 +146,7 @@ jobs:
             --games "${VALIDATION_GAMES}" \
             --min-games "${VALIDATION_GAMES}" \
             --nodes "${NODES}" \
+            --random-opening-plies 2 \
             --max-plies 300 \
             --move-timeout 30
 

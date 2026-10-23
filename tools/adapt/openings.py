@@ -7,7 +7,10 @@ batch, consecutive game ids share an opening and swap colours.
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
+
+import chess
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,25 @@ VALIDATION_OPENINGS: tuple[Opening, ...] = (
     _opening("modern-pirc", "e2e4 d7d6 d2d4 g8f6 b1c3 g7g6 c1e3 f8g7 f2f3 e8g8"),
     _opening("french-winawer", "e2e4 e7e6 d2d4 d7d5 b1c3 f8b4 e4e5 c7c5 a2a3 b4c3"),
 )
+
+
+def randomized_opening(
+    opening: Opening,
+    rng: random.Random,
+    extra_plies: int,
+    label: str,
+) -> Opening:
+    board = chess.Board()
+    moves = list(opening.moves)
+    for move_text in moves:
+        board.push(chess.Move.from_uci(move_text))
+    for _ in range(max(0, extra_plies)):
+        if board.is_game_over():
+            break
+        move = rng.choice(tuple(board.legal_moves))
+        board.push(move)
+        moves.append(move.uci())
+    return Opening(f"{opening.name}-{label}", tuple(moves))
 
 
 def get_openings(split: str) -> tuple[Opening, ...]:

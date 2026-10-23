@@ -45,6 +45,7 @@ def _arm_arguments(args: argparse.Namespace, checkpoint: Path, output: Path) -> 
         nodes=args.nodes,
         hash_mb=args.hash_mb,
         openings="validation",
+        random_opening_plies=args.random_opening_plies,
         max_plies=args.max_plies,
         sample_every=0,
         max_samples_per_game=0,
@@ -157,6 +158,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         },
         "nodes": args.nodes,
         "openings": "validation",
+        "random_opening_plies": args.random_opening_plies,
         "requested_games": args.games,
         "paired_games": paired_games,
         "candidate": {
@@ -208,6 +210,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-games", type=int, default=100)
     parser.add_argument("--nodes", type=int, default=2000)
     parser.add_argument("--hash-mb", type=int, default=16)
+    parser.add_argument("--random-opening-plies", type=int, default=0)
     parser.add_argument("--max-plies", type=int, default=300)
     parser.add_argument("--move-timeout", type=float, default=30.0)
     parser.add_argument("--max-consecutive-failures", type=int, default=3)

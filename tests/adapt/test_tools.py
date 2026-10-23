@@ -91,6 +91,17 @@ class OpeningTests(unittest.TestCase):
                                     f"{split}/{opening.name} illegal at ply {ply}: {text}")
                     board.push(move)
 
+    def test_randomized_openings_are_legal_and_seeded(self) -> None:
+        base = openings.get_openings("train")[0]
+        first = openings.randomized_opening(base, __import__("random").Random(7), 2, "r0")
+        second = openings.randomized_opening(base, __import__("random").Random(7), 2, "r0")
+        self.assertEqual(first, second)
+        board = chess.Board()
+        for move_text in first.moves:
+            move = chess.Move.from_uci(move_text)
+            self.assertTrue(board.is_legal(move), move_text)
+            board.push(move)
+
     def test_splits_are_disjoint(self) -> None:
         train_moves = {opening.moves for opening in openings.get_openings("train")}
         validation_moves = {opening.moves for opening in openings.get_openings("validation")}

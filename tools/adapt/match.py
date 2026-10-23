@@ -12,6 +12,7 @@ import argparse
 import json
 import math
 import os
+import random
 import sys
 import time
 from dataclasses import dataclass, field
@@ -347,6 +348,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "hash_mb": args.hash_mb,
         "games": args.games,
         "openings": args.openings,
+        "random_opening_plies": args.random_opening_plies,
         "seed": args.seed,
         "max_plies": args.max_plies,
         "sample_every": args.sample_every,
@@ -386,7 +388,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         for game_id in range(args.games):
             if game_id in existing_ids:
                 continue
-            opening = opening_set[(game_id // 2) % len(opening_set)]
+            pair_id = game_id // 2
+            opening = opening_set[pair_id % len(opening_set)]
+            if args.random_opening_plies:
+                opening = openings.randomized_opening(
+                    opening,
+                    random.Random(args.seed * 1000003 + pair_id),
+                    args.random_opening_plies,
+                    f"r{pair_id}",
+                )
             try:
                 candidate, baseline = ensure_engines()
                 candidate.new_game()
@@ -471,6 +481,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--nodes", type=int, default=2000)
     parser.add_argument("--hash-mb", type=int, default=16)
     parser.add_argument("--openings", choices=("train", "validation"), default="train")
+    parser.add_argument("--random-opening-plies", type=int, default=0,
+                        help="append seeded legal moves to each opening line")
     parser.add_argument("--max-plies", type=int, default=300)
     parser.add_argument("--sample-every", type=int, default=4,
                         help="sample every N candidate moves")
@@ -491,6 +503,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.sample_every < 0:
         print("--sample-every must be non-negative", file=sys.stderr)
+        return 2
+    if args.random_opening_plies < 0:
+        print("--random-opening-plies must be non-negative", file=sys.stderr)
         return 2
     try:
         summary = run(args)
